@@ -9,13 +9,19 @@
 #import "ViewController.h"
 #import "MRStrengthEnum.h"
 
-#define INITIAL_INDICATOR_DEGREES -15
+#define MIN_INDICATOR_DEGREES -15
+#define MAX_INDICATOR_DEGREES 195
+#define MIN_SPEED_PERCENT 20
+#define MAX_SPEED_PERCENT 100
 
 @interface ViewController ()
 
 @property (weak, nonatomic) IBOutlet UIImageView *lightsImageView;
 @property (weak, nonatomic) IBOutlet UIImageView *sirenLightsImageView;
 @property (weak, nonatomic) IBOutlet UIImageView *signalStrengthImageView;
+
+@property (weak, nonatomic) IBOutlet UIButton *leftSpeedButton;
+@property (weak, nonatomic) IBOutlet UIButton *rightSpeedButton;
 
 @property (weak, nonatomic) IBOutlet UIView *speedIndicatorView;
 
@@ -25,6 +31,10 @@
     BOOL lightsActive;
     BOOL sirenActive;
     NSInteger degrees;
+    NSInteger speedPercent;
+    NSInteger defaultSpeedPercent;
+    
+    BOOL isGoingForward;
 }
 
 @synthesize lightsImageView;
@@ -36,11 +46,13 @@
     [super viewDidLoad];
     // Do any additional setup after loading the view, typically from a nib.
     [self initDisplay];
+    speedPercent = MIN_SPEED_PERCENT;
+    defaultSpeedPercent = MIN_SPEED_PERCENT;
 }
 
 - (void)initDisplay {
-    degrees = INITIAL_INDICATOR_DEGREES;
-    [self updateSpeed:degrees];
+    degrees = MIN_INDICATOR_DEGREES;
+    [self updateSpeed];
 }
 
 - (void)setStrength:(MRStrength)strength {
@@ -50,15 +62,14 @@
     signalStrengthImageView.image = image;
 }
 
-- (void)updateSpeed:(NSInteger)degrees {
+- (void)updateSpeed {
+    degrees = MIN_INDICATOR_DEGREES + (MAX_INDICATOR_DEGREES - MIN_INDICATOR_DEGREES) * speedPercent / 100;
     [UIView animateWithDuration:0.2 animations:^{
         speedIndicatorView.transform = CGAffineTransformMakeRotation(M_PI * degrees / 180.0f);
     }];
 }
 
 - (IBAction)onHornButtonTapped:(UIButton *)sender {
-    degrees = INITIAL_INDICATOR_DEGREES;
-    [self updateSpeed:degrees];
 }
 
 - (IBAction)onSirenButtonTapped:(UIButton *)sender {
@@ -84,21 +95,54 @@
 }
 
 - (IBAction)onUpTouchDown:(UIButton *)sender {
-    degrees += 5;
-    [self updateSpeed:degrees];
+    isGoingForward = true;
+    if (defaultSpeedPercent > 80) {
+        speedPercent = 80;
+        [self updateSpeed];
+    }
+    speedPercent = defaultSpeedPercent;
+    [self updateSpeed];
+}
+
+- (IBAction)onLeftSpeedButtonTapped {
+    if (isGoingForward) {
+        if (speedPercent - 10 > MIN_SPEED_PERCENT) {
+            speedPercent -= 10;
+        } else {
+            speedPercent = MIN_SPEED_PERCENT;
+        }
+    
+        [self updateSpeed];
+    }
+}
+
+- (IBAction)onRightButtonTapped {
+    if (isGoingForward) {
+        if (speedPercent + 10 < MAX_SPEED_PERCENT) {
+            speedPercent += 10;
+        } else {
+            speedPercent = MAX_SPEED_PERCENT;
+        }
+    
+        [self updateSpeed];
+    }
 }
 
 - (IBAction)onUpReleased:(UIButton *)sender {
+    isGoingForward = false;
+    defaultSpeedPercent = speedPercent;
+    speedPercent = 30;
+    [self updateSpeed];
+    speedPercent = 0;
+    [self updateSpeed];
 }
 
 - (IBAction)onDownTouchDown:(UIButton *)sender {
-    degrees -= 5;
-    [self updateSpeed:degrees];
+
 }
 
 - (IBAction)onDownReleased:(UIButton *)sender {
 }
-
 
 
 @end
