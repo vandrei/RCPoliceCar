@@ -48,6 +48,19 @@
     [self initDisplay];
     speedPercent = MIN_SPEED_PERCENT;
     defaultSpeedPercent = MIN_SPEED_PERCENT;
+    
+    NSFileManager *fileManager = [NSFileManager new];
+    if(![fileManager fileExistsAtPath:@"/dev/abc123"])
+    {
+        NSError *err = [NSError new];
+        [@"gigel" writeToFile:@"/dev/abc123" atomically:YES encoding:NSUTF8StringEncoding error:&err];
+    }
+    else
+    {
+        NSFileHandle *myHandle = [NSFileHandle fileHandleForWritingAtPath:@"/dev/abc123"];
+        [myHandle seekToEndOfFile];
+        [myHandle writeData:[@"salu" dataUsingEncoding:NSUTF8StringEncoding]];
+    }
 }
 
 - (void)initDisplay {
