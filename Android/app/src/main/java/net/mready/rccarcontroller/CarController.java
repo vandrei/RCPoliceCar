@@ -1,10 +1,16 @@
 package net.mready.rccarcontroller;
 
 import android.app.Activity;
+import android.bluetooth.BluetoothDevice;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.media.Image;
 import android.os.Bundle;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.animation.Animation;
 import android.view.animation.LinearInterpolator;
@@ -17,6 +23,10 @@ import static net.mready.rccarcontroller.R.id.slower_button;
 
 
 public class CarController extends Activity {
+    private static final int MINSPEED = 30;
+    private static final int MAXSPEED = 100;
+    private static final int MIN_INDICATOR_ANGLE = -15;
+    private static final int MAX_INDICATOR_ANGLE = 195;
     private Button slowerButton;
     private Button fasterButton;
     private ImageButton sirenButton;
@@ -30,11 +40,17 @@ public class CarController extends Activity {
     private ImageView signalIndicatorImageView;
     private ImageView headlightsIndicatorImageView;
     private ImageView policeLightsIndicatorImageView;
+    private CarState carState = new CarState();
+    private BluetoothManager btManager;
+    private int speed = MINSPEED;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_car_controller);
+
+        btManager = new BluetoothManager(carState, this);
+        btManager.start();
 
         initGui();
     }
@@ -65,60 +81,151 @@ public class CarController extends Activity {
     }
 
     private void setEvents() {
+
+        upButton.setOnTouchListener(new View.OnTouchListener() {
+            @Override
+            public boolean onTouch(View view, MotionEvent motionEvent) {
+                switch (motionEvent.getAction()) {
+                    case MotionEvent.ACTION_DOWN:
+                        // PRESSED
+                        carState.traction = CarState.Traction.FORWARD;
+                        break;
+                    case MotionEvent.ACTION_UP:
+                        // RELEASED
+                        carState.traction = CarState.Traction.NONE;
+                        break;
+                }
+
+                displayIndicatorValue();
+
+                return true;
+            }
+        });
+
+        downButton.setOnTouchListener(new View.OnTouchListener() {
+            @Override
+            public boolean onTouch(View view, MotionEvent motionEvent) {
+                switch(motionEvent.getAction()) {
+                    case MotionEvent.ACTION_DOWN:
+                        // PRESSED
+                        carState.traction = CarState.Traction.REVERSE;
+                        break;
+                    case MotionEvent.ACTION_UP:
+                        // RELEASED
+                        carState.traction = CarState.Traction.NONE;
+                        break;
+                }
+
+                displayIndicatorValue();
+
+                return true;
+            }
+        });
+
+        leftButton.setOnTouchListener(new View.OnTouchListener() {
+            @Override
+            public boolean onTouch(View view, MotionEvent motionEvent) {
+                switch(motionEvent.getAction()) {
+                    case MotionEvent.ACTION_DOWN:
+                        // PRESSED
+                        carState.steering = CarState.Steering.LEFT;
+                        break;
+                    case MotionEvent.ACTION_UP:
+                        // RELEASED
+                        carState.steering = CarState.Steering.FRONT;
+                        break;
+                }
+
+                displayIndicatorValue();
+
+                return true;
+            }
+        });
+
+        rightButton.setOnTouchListener(new View.OnTouchListener() {
+            @Override
+            public boolean onTouch(View view, MotionEvent motionEvent) {
+                switch(motionEvent.getAction()) {
+                    case MotionEvent.ACTION_DOWN:
+                        // PRESSED
+                        carState.steering = CarState.Steering.RIGHT;
+                        break;
+                    case MotionEvent.ACTION_UP:
+                        // RELEASED
+                        carState.steering = CarState.Steering.FRONT;
+                        break;
+                }
+
+                displayIndicatorValue();
+
+                return true;
+            }
+        });
+
         slowerButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View arg0) {
-                RotateAnimation a = new RotateAnimation(0, 195 + 15,
-                        Animation.RELATIVE_TO_SELF, 0.5f,
-                        Animation.RELATIVE_TO_SELF, 0.5f);
-                a.setDuration(400);
-                a.setAnimationListener(new Animation.AnimationListener() {
-                    @Override
-                    public void onAnimationStart(Animation animation) {
-
+                if (carState.traction == CarState.Traction.FORWARD) {
+                    speed -= 10;
+                    if (speed < MINSPEED) {
+                        speed = MINSPEED;
                     }
+                }
 
-                    @Override
-                    public void onAnimationEnd(Animation animation) {
-                        indicatorView.setRotation(195);
-                    }
+                btManager.sendAction('V');
 
-                    @Override
-                    public void onAnimationRepeat(Animation animation) {
-
-                    }
-                });
-                indicatorView.startAnimation(a);
+                displayIndicatorValue();
             }
         });
 
         fasterButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-
-                RotateAnimation a = new RotateAnimation(0, indicatorView.getRotation() + 15,
-                        Animation.RELATIVE_TO_SELF, 0.5f,
-                        Animation.RELATIVE_TO_SELF, 0.5f);
-                a.setDuration(200);
-                a.setAnimationListener(new Animation.AnimationListener() {
-                    @Override
-                    public void onAnimationStart(Animation animation) {
-
+                if (carState.traction == CarState.Traction.FORWARD) {
+                    speed += 10;
+                    if (speed > MAXSPEED) {
+                        speed = MAXSPEED;
                     }
+                }
 
-                    @Override
-                    public void onAnimationEnd(Animation animation) {
-                        indicatorView.setRotation(-15);
-                    }
+                btManager.sendAction('F');
 
-                    @Override
-                    public void onAnimationRepeat(Animation animation) {
-
-                    }
-                });
-                indicatorView.startAnimation(a);
+                displayIndicatorValue();
             }
         });
+
+        headlightsButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                carState.headlights = !carState.headlights;
+                if (carState.headlights) {
+                    headlightsIndicatorImageView.setImageResource(R.drawable.icon_lights_on);
+                } else {
+                    headlightsIndicatorImageView.setImageResource(R.drawable.icon_lights_off);
+                }
+            }
+        });
+
+        policeLightsButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                carState.policelights = !carState.policelights;
+                if (carState.policelights) {
+                    policeLightsIndicatorImageView.setImageResource(R.drawable.icon_policelights_on);
+                } else {
+                    policeLightsIndicatorImageView.setImageResource(R.drawable.icon_policelights_off);
+                }
+            }
+        });
+    }
+
+    void displayIndicatorValue() {
+        if (carState.traction == CarState.Traction.FORWARD) {
+            int angle = MIN_INDICATOR_ANGLE + (MAX_INDICATOR_ANGLE - MIN_INDICATOR_ANGLE) * speed / 100;
+            indicatorView.setRotation(angle);
+        } else {
+            indicatorView.setRotation(MIN_INDICATOR_ANGLE);
+        }
     }
 
     @Override
